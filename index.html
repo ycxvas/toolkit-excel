@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Excel Toolkit - Alat Bantu Tes Kerja</title>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--text:#1c2430;--muted:#667085;--line:#e3e7ee;--accent:#1d7a46;--soft:#e6f4ec;--code:#0f172a;--warn:#b54708;--warnbg:#fff4e5}
+@media (prefers-color-scheme:dark){:root{--bg:#0f141a;--card:#171e27;--text:#e8edf3;--muted:#98a2b3;--line:#27313d;--accent:#3ecf8e;--soft:#17352a;--code:#0b1017;--warn:#fdb022;--warnbg:#3a2a0d}}
+*{box-sizing:border-box}
+body{margin:0;font:15px/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--text)}
+header,.bar,main{max-width:1100px;margin-left:auto;margin-right:auto;padding-left:16px;padding-right:16px}
+header{padding-top:22px}
+h1{margin:0;font-size:24px}
+header p{margin:4px 0 0;color:var(--muted)}
+.how{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0 4px}
+.how div{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:14px}
+.how b{color:var(--accent)}
+.bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:12px;margin-bottom:12px}
+.bar input{flex:1;min-width:200px}
+input,select{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);color:var(--text);width:100%}
+.bar input,.sep select{width:auto}
+.sep{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px}
+main{display:grid;grid-template-columns:270px 1fr;gap:16px;padding-bottom:40px}
+nav{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:8px;max-height:75vh;overflow:auto;align-self:start;position:sticky;top:12px}
+nav h3{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:12px 8px 4px}
+nav button{display:block;width:100%;text-align:left;background:none;border:0;padding:8px 10px;border-radius:8px;color:var(--text);cursor:pointer;font:inherit}
+nav button:hover{background:var(--soft)}
+nav button.on{background:var(--accent);color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+.card h2{margin:0 0 2px;font-size:20px}
+.muted{color:var(--muted)}
+label{display:block;margin:12px 0 4px;font-size:13px;font-weight:600}
+.row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+button.btn{border:1px solid var(--line);background:var(--card);color:var(--text);padding:8px 14px;border-radius:10px;cursor:pointer;font:inherit}
+button.btn:hover{background:var(--soft)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover{background:var(--accent);opacity:.9}
+.out{margin-top:16px}
+pre{margin:6px 0 0;padding:14px;background:var(--code);color:#e6edf3;border-radius:10px;overflow:auto;font:14px/1.5 ui-monospace,Menlo,Consolas,monospace;white-space:pre-wrap;word-break:break-all}
+.warn{margin-top:8px;padding:8px 12px;border-radius:8px;background:var(--warnbg);color:var(--warn);font-size:13px}
+ol{padding-left:20px;margin:8px 0}
+li{margin:4px 0}
+.tip{margin-top:12px;padding:10px 12px;background:var(--soft);border-radius:10px;font-size:14px}
+footer{max-width:1100px;margin:0 auto;padding:0 16px 30px;color:var(--muted);font-size:13px}
+@media(max-width:760px){main{grid-template-columns:1fr}nav{position:static;max-height:240px}.how{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Excel Toolkit</h1>
+  <p>Alat bantu saat tes Excel: pilih alat, isi kolom, salin rumusnya.</p>
+  <div class="how">
+    <div><b>1.</b> Pilih alat di daftar (atau cari).</div>
+    <div><b>2.</b> Isi kolom dengan alamat sel/nilai dari datamu.</div>
+    <div><b>3.</b> Klik <b>Salin rumus</b>, tempel di Excel, Enter.</div>
+  </div>
+</header>
+<div class="bar">
+  <input id="s" type="search" placeholder="Cari alat, mis. lookup, jumlah, umur, pivot...">
+  <div class="sep">Pemisah rumus
+    <select id="sep" title="Excel dengan pengaturan regional Indonesia biasanya memakai titik koma">
+      <option value=",">Koma ( , )</option>
+      <option value=";">Titik koma ( ; )</option>
+    </select>
+  </div>
+</div>
+<main>
+  <nav id="nav"></nav>
+  <section class="card" id="panel"></section>
+</main>
+<footer>Kalau Excel menolak rumus dengan koma, ganti pemisah ke titik koma (umum di Excel berbahasa Indonesia). Penjelasan lengkap ada di file panduan 01-08 di repositori ini.</footer>
+
+<script>
+(function(){
+var CELL=/^\$?[A-Za-z]{1,3}\$?\d+(:\$?[A-Za-z]{1,3}\$?\d+)?$/;
+var NUM=/^-?\d+(\.\d+)?$/;
+function quoted(s){return /^".*"$/.test(s);}
+function q(s){return '"'+s.replace(/"/g,'""')+'"';}
+function smart(s,type){
+  if(quoted(s)||CELL.test(s)||NUM.test(s))return s;
+  if(type==='val'&&/[()&]/.test(s))return s;
+  return q(s);
+}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+function F(k,label,ph,ex,type,opts){return {k:k,label:label,ph:ph,ex:ex,type:type||'raw',opts:opts};}
+function T(id,cat,name,desc,fields,build,steps,tip){return {id:id,cat:cat,name:name,desc:desc,fields:fields,build:build,steps:steps,tip:tip};}
+
+var C1='Hitung & Agregasi',C2='Logika & Kondisi',C3='Lookup (Cari Data)',C4='Teks',C5='Tanggal',C6='Panduan Klik (tanpa rumus)';
+var TOOLS=[
+T('sum',C1,'Jumlah (SUM)','Menjumlahkan semua angka dalam satu rentang.',
+ [F('r','Rentang angka','B2:B20','B2:B20')],
+ function(g){return '=SUM('+g('r')+')';},
+ ['Pilih rentang yang hanya berisi angka (jangan ikut baris judul).'],
+ 'Cara kilat: klik sel kosong di bawah kolom angka lalu tekan Alt + =.'),
+T('sumif',C1,'Jumlah dengan syarat (SUMIF)','Menjumlahkan angka hanya untuk baris yang cocok dengan satu syarat.',
+ [F('kr','Rentang syarat','A2:A20','A2:A20'),F('k','Syarat (teks, angka, atau sel)','Jakarta','Jakarta','crit'),F('sr','Rentang yang dijumlahkan','C2:C20','C2:C20')],
+ function(g){return '=SUMIF('+g('kr')+','+g('k')+','+g('sr')+')';},
+ ['Rentang syarat dan rentang jumlah harus sama panjang.'],
+ 'Ketik syarat apa adanya: Jakarta, >=50, atau A1. Tanda kutip ditambahkan otomatis bila perlu.'),
+T('sumifs',C1,'Jumlah dengan 2 syarat (SUMIFS)','Menjumlahkan angka yang memenuhi dua syarat sekaligus.',
+ [F('sr','Rentang yang dijumlahkan','D2:D20','D2:D20'),F('kr1','Rentang syarat 1','A2:A20','A2:A20'),F('k1','Syarat 1','Jakarta','Jakarta','crit'),F('kr2','Rentang syarat 2','B2:B20','B2:B20'),F('k2','Syarat 2','>=100','>=100','crit')],
+ function(g){return '=SUMIFS('+g('sr')+','+g('kr1')+','+g('k1')+','+g('kr2')+','+g('k2')+')';},
+ ['Perhatikan urutan: rentang yang dijumlahkan ada di depan, berbeda dengan SUMIF.'],
+ 'Semua rentang harus sama panjang.'),
+T('countif',C1,'Hitung dengan syarat (COUNTIF)','Menghitung jumlah sel yang cocok dengan satu syarat.',
+ [F('r','Rentang','A2:A20','A2:A20'),F('k','Syarat','Hadir','Hadir','crit')],
+ function(g){return '=COUNTIF('+g('r')+','+g('k')+')';},
+ ['Untuk menghitung semua sel yang terisi, pakai =COUNTA(rentang).'],
+ 'Contoh syarat angka: >70 menghitung sel yang lebih dari 70.'),
+T('countifs',C1,'Hitung dengan 2 syarat (COUNTIFS)','Menghitung baris yang memenuhi dua syarat sekaligus.',
+ [F('r1','Rentang syarat 1','A2:A20','A2:A20'),F('k1','Syarat 1','Jakarta','Jakarta','crit'),F('r2','Rentang syarat 2','C2:C20','C2:C20'),F('k2','Syarat 2','>=75','>=75','crit')],
+ function(g){return '=COUNTIFS('+g('r1')+','+g('k1')+','+g('r2')+','+g('k2')+')';},
+ [],'Semua rentang harus sama panjang.'),
+T('averageif',C1,'Rata-rata dengan syarat (AVERAGEIF)','Merata-rata angka hanya untuk baris yang cocok dengan syarat.',
+ [F('kr','Rentang syarat','A2:A20','A2:A20'),F('k','Syarat','Jakarta','Jakarta','crit'),F('ar','Rentang yang dirata-rata','C2:C20','C2:C20')],
+ function(g){return '=AVERAGEIF('+g('kr')+','+g('k')+','+g('ar')+')';},
+ [],'Kalau tidak ada baris yang cocok, hasilnya #DIV/0!. Bungkus dengan alat IFERROR.'),
+T('rank',C1,'Peringkat (RANK)','Menentukan peringkat sebuah nilai di antara daftar nilai.',
+ [F('n','Sel nilai','B2','B2'),F('r','Rentang semua nilai','$B$2:$B$20','$B$2:$B$20'),F('o','Urutan','','0','select',[['0','Terbesar = peringkat 1'],['1','Terkecil = peringkat 1']])],
+ function(g){return '=RANK('+g('n')+','+g('r')+','+g('o')+')';},
+ ['Tulis rentang dengan tanda $ (absolut) supaya tidak bergeser saat rumus ditarik ke bawah.'],
+ 'Tekan F4 saat kursor di rentang untuk menambah tanda $ otomatis.'),
+T('round',C1,'Pembulatan (ROUND)','Membulatkan angka ke jumlah desimal tertentu.',
+ [F('x','Sel atau hitungan','B2/C2','B2/C2'),F('d','Jumlah desimal','2','2')],
+ function(g){return '=ROUND('+g('x')+','+g('d')+')';},
+ [],'Desimal 0 = bilangan bulat. Desimal -3 = dibulatkan ke ribuan terdekat.'),
+T('percent',C1,'Persentase','Menghitung bagian dibanding total dalam persen.',
+ [F('a','Sel bagian','B2','B2'),F('b','Sel total','$B$21','$B$21')],
+ function(g){return '='+g('a')+'/'+g('b');},
+ ['Setelah rumus dimasukkan, tekan Ctrl + Shift + % agar tampil sebagai persen.'],
+ 'Jangan dikali 100 sendiri bila memakai format persen.'),
+
+T('if',C2,'Jika (IF)','Menampilkan hasil berbeda tergantung kondisi benar atau salah.',
+ [F('c','Kondisi','B2>=75','B2>=75'),F('b','Hasil jika benar','Lulus','Lulus','val'),F('s','Hasil jika salah','Tidak Lulus','Tidak Lulus','val')],
+ function(g){return '=IF('+g('c')+','+g('b')+','+g('s')+')';},
+ ['Tulis kondisi memakai alamat sel, mis. B2>=75 atau A2="Jakarta".'],
+ 'Teks hasil diberi tanda kutip otomatis, angka dan alamat sel tidak.'),
+T('ifandor',C2,'Jika dengan DAN / ATAU','IF dengan dua kondisi yang harus terpenuhi semua (DAN) atau salah satu (ATAU).',
+ [F('op','Gabungan kondisi','','AND','select',[['AND','DAN (kedua harus benar)'],['OR','ATAU (salah satu benar)']]),F('c1','Kondisi 1','B2>=75','B2>=75'),F('c2','Kondisi 2','C2>=75','C2>=75'),F('b','Hasil jika benar','Lulus','Lulus','val'),F('s','Hasil jika salah','Remedial','Remedial','val')],
+ function(g){return '=IF('+g('op')+'('+g('c1')+','+g('c2')+'),'+g('b')+','+g('s')+')';},
+ [],'Butuh lebih dari dua kondisi? Tambahkan kondisi di dalam tanda kurung AND/OR secara manual.'),
+T('ifs',C2,'Jika bertingkat (IFS)','Memberi hasil berbeda untuk beberapa rentang nilai, mis. nilai huruf.',
+ [F('c1','Kondisi 1 (paling tinggi dulu)','B2>=90','B2>=90'),F('v1','Hasil 1','A','A','val'),F('c2','Kondisi 2','B2>=80','B2>=80'),F('v2','Hasil 2','B','B','val'),F('c3','Kondisi 3','B2>=70','B2>=70'),F('v3','Hasil 3','C','C','val'),F('d','Hasil lainnya','D','D','val')],
+ function(g){return '=IFS('+g('c1')+','+g('v1')+','+g('c2')+','+g('v2')+','+g('c3')+','+g('v3')+',TRUE,'+g('d')+')';},
+ ['Urutkan dari syarat paling ketat ke paling longgar.'],
+ 'IFS ada di Excel 2019/365. Excel lama: pakai IF yang ditumpuk.'),
+T('iferror',C2,'Tangani error (IFERROR)','Mengganti pesan error (#N/A, #DIV/0!) dengan nilai yang kamu mau.',
+ [F('f','Rumus asal (tanpa tanda =)','VLOOKUP(A2,$E$2:$F$20,2,FALSE)','A2/B2'),F('p','Nilai pengganti','Tidak ada','Tidak ada','val')],
+ function(g){return '=IFERROR('+g('f')+','+g('p')+')';},
+ ['Salin rumus asalmu lalu hapus tanda = di depannya sebelum diisi di kolom pertama.'],
+ 'Pakai 0 atau "" (kosong) sebagai pengganti kalau mau tampilan rapi.'),
+
+T('vlookup',C3,'Cari data (VLOOKUP)','Mencari nilai di kolom pertama tabel lalu mengambil data dari kolom lain.',
+ [F('n','Nilai yang dicari','A2','A2'),F('t','Tabel sumber','$E$2:$G$20','$E$2:$G$20'),F('k','Kolom hasil ke-','2','2')],
+ function(g){return '=VLOOKUP('+g('n')+','+g('t')+','+g('k')+',FALSE)';},
+ ['Nilai yang dicari harus ada di kolom PALING KIRI tabel sumber.','Kolom hasil dihitung dari kiri tabel: kolom pertama = 1, kedua = 2, dst.'],
+ 'FALSE berarti cocok persis. Ini yang hampir selalu dipakai di tes.'),
+T('xlookup',C3,'Cari data (XLOOKUP)','Pengganti VLOOKUP yang lebih fleksibel, bisa mencari ke arah mana saja.',
+ [F('n','Nilai yang dicari','A2','A2'),F('c','Kolom tempat mencari','E2:E20','E2:E20'),F('h','Kolom hasil','F2:F20','F2:F20'),F('nf','Jika tidak ketemu','Tidak ada','Tidak ada','val')],
+ function(g){return '=XLOOKUP('+g('n')+','+g('c')+','+g('h')+','+g('nf')+')';},
+ [],'Hanya ada di Excel 365/2021. Kalau tidak tersedia, pakai VLOOKUP atau INDEX + MATCH.'),
+T('indexmatch',C3,'Cari data (INDEX + MATCH)','Alternatif VLOOKUP yang bisa mengambil data dari kolom di sebelah kiri.',
+ [F('h','Kolom hasil','F2:F20','F2:F20'),F('n','Nilai yang dicari','A2','A2'),F('c','Kolom tempat mencari','E2:E20','E2:E20')],
+ function(g){return '=INDEX('+g('h')+',MATCH('+g('n')+','+g('c')+',0))';},
+ ['Kolom hasil dan kolom pencarian harus sama panjang.'],
+ 'Angka 0 pada MATCH berarti cocok persis.'),
+
+T('leftright',C4,'Ambil teks dari kiri/kanan','Mengambil sejumlah karakter dari awal atau akhir teks.',
+ [F('fn','Dari mana','','LEFT','select',[['LEFT','Kiri (awal)'],['RIGHT','Kanan (akhir)']]),F('t','Sel teks','A2','A2'),F('n','Jumlah karakter','3','3')],
+ function(g){return '='+g('fn')+'('+g('t')+','+g('n')+')';},
+ [],'Hasilnya berupa teks. Bungkus dengan VALUE(...) kalau perlu angka.'),
+T('mid',C4,'Ambil teks dari tengah (MID)','Mengambil karakter mulai dari posisi tertentu.',
+ [F('t','Sel teks','A2','A2'),F('s','Mulai dari karakter ke-','3','3'),F('n','Jumlah karakter','4','4')],
+ function(g){return '=MID('+g('t')+','+g('s')+','+g('n')+')';},
+ [],'Karakter pertama dihitung sebagai posisi 1.'),
+T('textjoin',C4,'Gabung teks (TEXTJOIN)','Menggabungkan banyak sel menjadi satu teks dengan pemisah.',
+ [F('p','Pemisah','', ', ','sep'),F('r','Rentang sel','A2:A10','A2:A10')],
+ function(g){return '=TEXTJOIN('+g('p')+',TRUE,'+g('r')+')';},
+ [],'Untuk dua sel saja, cukup =A2&" "&B2.'),
+T('clean',C4,'Rapikan teks','Membuang spasi berlebih atau mengubah huruf besar/kecil.',
+ [F('fn','Jenis','','TRIM','select',[['TRIM','Hapus spasi berlebih (TRIM)'],['PROPER','Huruf Awal Kapital (PROPER)'],['UPPER','HURUF BESAR (UPPER)'],['LOWER','huruf kecil (LOWER)']]),F('t','Sel teks','A2','A2')],
+ function(g){return '='+g('fn')+'('+g('t')+')';},
+ ['Setelah rumus jadi, salin hasilnya lalu Paste Special > Values bila mau menimpa data asli.'],
+ 'Data dari sistem lain sering punya spasi tersembunyi yang bikin lookup gagal. TRIM dulu.'),
+
+T('age',C5,'Umur / selisih waktu (DATEDIF)','Menghitung selisih dari sebuah tanggal sampai hari ini.',
+ [F('d','Sel tanggal lahir/awal','B2','B2'),F('u','Satuan','','Y','select',[['Y','Tahun'],['M','Bulan'],['D','Hari']])],
+ function(g){return '=DATEDIF('+g('d')+',TODAY(),"'+g('u')+'")';},
+ [],'DATEDIF tidak muncul di saran rumus, tapi tetap berfungsi. Pastikan sel tanggal benar-benar berformat tanggal.'),
+T('dateformat',C5,'Ubah format tanggal (TEXT)','Menampilkan tanggal sebagai teks dengan format pilihanmu.',
+ [F('d','Sel tanggal','A2','A2'),F('f','Format','','dd mmmm yyyy','select',[['dd/mm/yyyy','31/12/2026'],['dd mmmm yyyy','31 Desember 2026'],['mmmm yyyy','Desember 2026'],['dddd','Nama hari'],['mmm','Singkatan bulan']])],
+ function(g){return '=TEXT('+g('d')+',"'+g('f')+'")';},
+ [],'Di sebagian Excel berbahasa Indonesia, kode format memakai huruf lokal (mis. hh/bb/tttt). Kalau hasilnya aneh, coba itu.'),
+T('workdays',C5,'Hari kerja (NETWORKDAYS)','Menghitung jumlah hari kerja (Senin-Jumat) di antara dua tanggal.',
+ [F('a','Sel tanggal mulai','A2','A2'),F('b','Sel tanggal selesai','B2','B2')],
+ function(g){return '=NETWORKDAYS('+g('a')+','+g('b')+')';},
+ [],'Tanggal mulai dan selesai ikut dihitung. Tambahkan daftar libur sebagai argumen ketiga bila perlu.'),
+
+T('pivot',C6,'Pivot Table','Merangkum data besar jadi tabel ringkas tanpa rumus.',
+ [F('r','Rentang data (opsional)','A1:F200','A1:F200')],
+ null,
+ function(g){return ['Klik satu sel di dalam data (atau pilih '+g('r')+'). Pastikan baris pertama berisi judul kolom.','Buka tab Insert > PivotTable > OK.','Seret field kategori (mis. Kota) ke kotak Rows.','Seret field angka (mis. Penjualan) ke kotak Values.','Untuk mengganti Sum jadi Count/Average: klik kanan angka > Summarize Values By.','Seret field lain ke Columns atau Filters untuk memecah/menyaring.','Kalau data sumber berubah: klik kanan pivot > Refresh.'];},
+ 'Tampilan pivot bisa diubah lewat tab PivotTable Analyze dan Design.'),
+T('cf',C6,'Conditional Formatting','Mewarnai sel otomatis berdasarkan nilainya.',
+ [F('r','Rentang sel','B2:B20','B2:B20'),F('v','Batas nilai','75','75')],
+ null,
+ function(g){return ['Pilih rentang '+g('r')+'.','Buka Home > Conditional Formatting > Highlight Cells Rules > Greater Than (atau Less Than / Equal To).','Isi nilai '+g('v')+', pilih warna, klik OK.','Untuk aturan lain: Conditional Formatting > Manage Rules.'];},
+ 'Untuk menghapus: Conditional Formatting > Clear Rules.'),
+T('dropdown',C6,'Dropdown pilihan (Data Validation)','Membuat sel hanya bisa diisi dari daftar pilihan.',
+ [F('c','Sel/rentang','C2:C20','C2:C20'),F('l','Daftar pilihan (pisahkan koma)','Hadir,Izin,Alpha','Hadir,Izin,Alpha')],
+ null,
+ function(g){return ['Pilih sel '+g('c')+'.','Buka Data > Data Validation.','Pada Allow pilih List.','Di kolom Source ketik: '+g('l'),'Klik OK. Panah dropdown muncul di sel.'];},
+ 'Pemisah daftar bisa titik koma di Excel regional Indonesia.'),
+T('dupes',C6,'Hapus data ganda','Membuang baris yang duplikat.',
+ [],null,
+ ['Salin sheet atau data ke tempat lain sebagai cadangan.','Klik satu sel di dalam data.','Buka Data > Remove Duplicates.','Centang kolom yang menentukan "ganda" (centang semua untuk baris identik).','Klik OK. Excel menampilkan jumlah baris yang dihapus.'],
+ 'Mau tahu dulu mana yang ganda tanpa menghapus? Pakai Conditional Formatting > Duplicate Values.'),
+T('textcols',C6,'Pisahkan kolom (Text to Columns)','Memecah satu kolom menjadi beberapa, mis. "Nama, Kota".',
+ [],null,
+ ['Pilih kolom yang mau dipecah.','Buka Data > Text to Columns.','Pilih Delimited > Next.','Centang pemisah yang dipakai (Comma, Space, dll.) > Next.','Pilih sel tujuan supaya data asli tidak tertimpa > Finish.'],
+ 'Pastikan ada cukup kolom kosong di sebelah kanan.'),
+T('freeze',C6,'Kunci baris judul (Freeze Panes)','Menjaga baris judul tetap terlihat saat scroll.',
+ [],null,
+ ['Buka View > Freeze Panes.','Pilih Freeze Top Row untuk mengunci baris 1.','Untuk mengunci baris dan kolom: klik sel di kanan-bawah area yang mau dikunci, lalu View > Freeze Panes > Freeze Panes.'],
+ 'Batalkan lewat View > Freeze Panes > Unfreeze Panes.'),
+T('filter',C6,'Filter & Urutkan','Menyaring baris atau mengurutkan data.',
+ [],null,
+ ['Klik sel di dalam data lalu tekan Ctrl + Shift + L untuk mengaktifkan filter.','Klik panah di judul kolom, centang nilai yang mau ditampilkan.','Untuk mengurutkan: klik panah > Sort A to Z / Z to A, atau Data > Sort untuk beberapa tingkat.'],
+ 'Filter hanya menyembunyikan baris, datanya tidak hilang. Matikan dengan Ctrl + Shift + L lagi.'),
+T('flash',C6,'Isi otomatis pola (Flash Fill)','Excel meniru pola yang kamu ketik, mis. mengambil nama depan.',
+ [],null,
+ ['Di kolom kosong sebelah data, ketik hasil yang kamu mau untuk baris pertama.','Ketik hasil untuk baris kedua (Excel biasanya sudah menebak polanya).','Tekan Ctrl + E, atau Data > Flash Fill.'],
+ 'Cocok untuk memisah/menggabung teks tanpa rumus. Cek hasilnya karena pola bisa salah tebak.'),
+T('table',C6,'Jadikan Tabel (Ctrl + T)','Mengubah data jadi tabel dengan filter, warna selang-seling, dan rumus otomatis meluas.',
+ [],null,
+ ['Klik satu sel di dalam data.','Tekan Ctrl + T.','Centang "My table has headers" > OK.','Rumus yang kamu tulis di satu baris akan otomatis diisi ke seluruh kolom.'],
+ 'Tab Table Design memungkinkan ganti gaya dan menambah baris Total.')
+];
+
+var $=function(s){return document.querySelector(s);};
+var cur=(location.hash||'').slice(1);
+if(!TOOLS.some(function(t){return t.id===cur;}))cur=TOOLS[0].id;
+var vals={};
+
+function tool(){return TOOLS.filter(function(t){return t.id===cur;})[0];}
+
+function getter(t,v){
+  var miss=[];
+  var g=function(k){
+    var f=t.fields.filter(function(x){return x.k===k;})[0];
+    var x=v[k];
+    if(x==null||x==='')x=f.type==='select'?f.opts[0][0]:'';
+    if(f.type!=='sep')x=x.trim();
+    if(x===''){miss.push(f.label);return '‹'+f.label+'›';}
+    if(f.type==='crit'||f.type==='val')return smart(x,f.type);
+    if(f.type==='sep')return quoted(x)?x:q(x);
+    return x;
+  };
+  return {g:g,miss:miss};
+}
+
+function conv(s,sep){
+  if(sep===',')return s;
+  var out='',inq=false;
+  for(var i=0;i<s.length;i++){
+    var ch=s[i];
+    if(ch==='"')inq=!inq;
+    out+=(ch===','&&!inq)?';':ch;
+  }
+  return out;
+}
+
+function renderNav(){
+  var term=$('#s').value.toLowerCase();
+  var html='',last='';
+  TOOLS.filter(function(t){return (t.name+' '+t.cat+' '+t.desc).toLowerCase().indexOf(term)>-1;}).forEach(function(t){
+    if(t.cat!==last){html+='<h3>'+esc(t.cat)+'</h3>';last=t.cat;}
+    html+='<button data-id="'+t.id+'" class="'+(t.id===cur?'on':'')+'">'+esc(t.name)+'</button>';
+  });
+  $('#nav').innerHTML=html||'<p class="muted" style="padding:8px">Tidak ada hasil.</p>';
+}
+
+function renderPanel(){
+  var t=tool();
+  vals[cur]=vals[cur]||{};
+  var fields=t.fields.map(function(f){
+    var id='f_'+f.k;
+    var input=f.type==='select'
+      ?'<select id="'+id+'" data-k="'+f.k+'">'+f.opts.map(function(o){return '<option value="'+esc(o[0])+'">'+esc(o[1])+'</option>';}).join('')+'</select>'
+      :'<input id="'+id+'" data-k="'+f.k+'" placeholder="'+esc(f.ph)+'" autocomplete="off" spellcheck="false">';
+    return '<label for="'+id+'">'+esc(f.label)+'</label>'+input;
+  }).join('');
+  var hasF=!!t.build;
+  $('#panel').innerHTML=
+    '<h2>'+esc(t.name)+'</h2><div class="muted">'+esc(t.desc)+'</div>'+
+    fields+
+    (t.fields.length?'<div class="row"><button class="btn" id="ex">Isi contoh</button><button class="btn" id="rs">Kosongkan</button></div>':'')+
+    (hasF?'<div class="out"><b>Rumus</b><pre id="fx"></pre><div class="warn" id="wn" hidden></div><div class="row"><button class="btn primary" id="cp">Salin rumus</button><span class="muted" id="ok" style="align-self:center"></span></div></div>':'')+
+    '<div class="out"><b>Langkah pakai</b><ol id="st"></ol></div>'+
+    (t.tip?'<div class="tip"><b>Tips:</b> '+esc(t.tip)+'</div>':'');
+  t.fields.forEach(function(f){
+    var el=$('#f_'+f.k);
+    if(vals[cur][f.k]!=null)el.value=vals[cur][f.k];
+  });
+  update();
+}
+
+function update(){
+  var t=tool(),v=vals[cur];
+  var r=getter(t,v);
+  var specific=typeof t.steps==='function'?t.steps(r.g):t.steps;
+  var steps;
+  if(t.build){
+    var f=conv(t.build(r.g),$('#sep').value);
+    $('#fx').textContent=f;
+    var w=$('#wn');
+    if(r.miss.length){w.hidden=false;w.textContent='Masih ada kolom kosong: '+r.miss.join(', ')+'.';}else{w.hidden=true;}
+    steps=['Isi kolom di atas dengan alamat sel dari datamu (atau klik "Isi contoh" untuk melihat bentuknya).'].concat(specific,['Klik Salin rumus.','Di Excel, klik sel tempat hasil, tekan Ctrl + V lalu Enter.','Untuk baris lain: tarik kotak kecil di pojok kanan bawah sel ke bawah, atau klik dua kali kotak itu.']);
+  }else{
+    steps=specific;
+  }
+  $('#st').innerHTML=steps.map(function(s){return '<li>'+esc(s)+'</li>';}).join('');
+}
+
+function copyText(txt){
+  if(navigator.clipboard&&navigator.clipboard.writeText){return navigator.clipboard.writeText(txt);}
+  return new Promise(function(res,rej){
+    try{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();res();}catch(e){rej(e);}
+  });
+}
+
+$('#nav').addEventListener('click',function(e){
+  var b=e.target.closest('button[data-id]');
+  if(!b)return;
+  cur=b.getAttribute('data-id');
+  location.hash=cur;
+  renderNav();renderPanel();
+  if(window.innerWidth<=760)$('#panel').scrollIntoView({behavior:'smooth'});
+});
+$('#s').addEventListener('input',renderNav);
+$('#sep').addEventListener('change',update);
+$('#panel').addEventListener('input',function(e){
+  var k=e.target.getAttribute('data-k');
+  if(k){vals[cur][k]=e.target.value;update();}
+});
+$('#panel').addEventListener('change',function(e){
+  var k=e.target.getAttribute('data-k');
+  if(k){vals[cur][k]=e.target.value;update();}
+});
+$('#panel').addEventListener('click',function(e){
+  var id=e.target.id,t=tool();
+  if(id==='ex'){t.fields.forEach(function(f){vals[cur][f.k]=f.ex;});renderPanel();}
+  if(id==='rs'){vals[cur]={};renderPanel();}
+  if(id==='cp'){
+    copyText($('#fx').textContent).then(function(){
+      var ok=$('#ok');ok.textContent='Tersalin ✓';setTimeout(function(){ok.textContent='';},1800);
+    },function(){$('#ok').textContent='Gagal menyalin, blok teks lalu Ctrl + C.';});
+  }
+});
+
+renderNav();renderPanel();
+})();
+</script>
+</body>
+</html>
